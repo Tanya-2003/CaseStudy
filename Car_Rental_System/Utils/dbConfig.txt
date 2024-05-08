@@ -1,0 +1,5 @@
+﻿Data Source=TANYA-PERSONAL
+Initial Catalog=CRS
+Integrated Security=True
+Encrypt=True
+Trust Server Certificate=True
