@@ -418,39 +418,17 @@ namespace Car_Rental_System
                             Console.Write("Enter Amount: ");
                             int amount = int.Parse(Console.ReadLine());
 
-                            using (var context = new Car_Rental_System.Models.CrsContext())
-                            {
-                                var lease = context.Leases.FirstOrDefault(l => l.LeaseId == leaseId);
+                            var lease = repository.FindLeaseById(leaseId);
+                            repository.RecordPayment(lease, amount);
 
-                                if (lease != null)
-                                {
-                                    var existingPayment = context.Payments.FirstOrDefault(p => p.LeaseId == leaseId);
-                                    if (existingPayment != null)
-                                    {
-                                        existingPayment.Amount += amount;
-                                    }
-                                    else
-                                    {
-                                        context.Payments.Add(new Payment { LeaseId = leaseId, Amount = amount });
-                                    }
-                                    context.SaveChanges();
-                                    Console.WriteLine("Payment recorded successfully.");
-                                }
-                                
-                                else
-                                {
-                                    throw new LeaseNotFoundE("Lease not found.");
-                                }
-                            }
+                            Console.WriteLine("Payment recorded successfully.");
                         }
                         catch (Exception ex)
                         {
                             Console.WriteLine($"Error: {ex.Message}");
                         }
-
                         break;
 
-                        break;
                     case 2:
                         return;
 

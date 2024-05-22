@@ -100,6 +100,16 @@ namespace Car_Rental_System.Dao
         //Lease Methods Impl
         public Lease CreateLease(int leaseID,int customerID, int vehicleID, DateTime startDate, DateTime endDate, string leaseType)
         {
+            //check if vehicle available
+            bool isVehicleAvailable = crsContext.Leases
+                                                .Where(l => l.VehicleId == vehicleID && l.StartDate <= endDate && l.EndDate >= startDate)
+                                                .FirstOrDefault() == null;
+
+            if (!isVehicleAvailable)
+            {
+                throw new Exception("The vehicle is not available for the requested lease period.");
+            }
+
             Customer customer = crsContext.Customers.FirstOrDefault(c => c.CustomerId == customerID);
             Vehicle vehicle = crsContext.Vehicles.FirstOrDefault(v => v.VehicleId == vehicleID);
 
@@ -162,12 +172,38 @@ namespace Car_Rental_System.Dao
 
             if (existingLease != null)
             {
-                UpdatePaymentAmountInDatabase(existingLease, amount);
+                Vehicle vehicle = crsContext.Vehicles.FirstOrDefault(v => v.VehicleId == existingLease.VehicleId);
+                if (vehicle != null)
+                {
+                    if (existingLease.StartDate == null || existingLease.EndDate == null)
+                    {
+                        throw new Exception("Start date or end date for the lease is not set.");
+                    }
+
+                    DateTime startDate = existingLease.StartDate.Value;  
+                    DateTime endDate = existingLease.EndDate.Value;
+
+                    if (vehicle.DailyRate == null)
+                    {
+                        throw new Exception("Daily rate for the vehicle is not set.");
+                    }
+                    int dailyRate = vehicle.DailyRate.Value;
+
+                    int totalDays = (endDate - startDate).Days;
+                    int totalAmountDue = totalDays * dailyRate;
+
+                    UpdatePaymentAmountInDatabase(existingLease, totalAmountDue, amount);
+                }
+                else
+                {
+                    throw new Exception("Vehicle not found for the lease.");
+                }
             }
             else
             {
                 throw new LeaseNotFoundE("Lease not found.");
             }
+
         }
 
         public Lease FindLeaseById(int leaseId)
@@ -180,17 +216,28 @@ namespace Car_Rental_System.Dao
             return lease;
         }
 
-        private void UpdatePaymentAmountInDatabase(Lease existingLease, int amount)
+        private void UpdatePaymentAmountInDatabase(Lease existingLease, int totalAmountDue, int paymentAmount)
         {
             var existingPayment = crsContext.Payments.FirstOrDefault(p => p.LeaseId == existingLease.LeaseId);
             if (existingPayment != null)
             {
-                existingPayment.Amount += amount;
+                if (existingPayment.Amount == null)
+                {
+                    throw new Exception("Existing payment amount is null.");
+                }
+
+                double currentAmount = existingPayment.Amount.Value; 
+                double newBalance = currentAmount - paymentAmount;
+                existingPayment.Amount = (int)newBalance; 
                 crsContext.SaveChanges();
+                Console.WriteLine($"Payment recorded. Remaining balance: {newBalance}");
             }
             else
             {
-                throw new PaymentNotFoundE("Payment not found for the lease in the database.");
+                int initialBalance = totalAmountDue - paymentAmount;
+                crsContext.Payments.Add(new Payment { LeaseId = existingLease.LeaseId, Amount = initialBalance });
+                crsContext.SaveChanges();
+                Console.WriteLine($"Payment recorded. Remaining balance: {initialBalance}");
             }
         }
 
